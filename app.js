@@ -94,12 +94,12 @@ function renderLoop() {
   const mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   svg.append(mk("circle", { cx, cy, r, class: "ring" }));
   const orbit = mk("circle", { r: 4, class: "orbit" }); svg.append(orbit);
-  const center = mk("text", { x: cx, y: cy + 4, class: "center" }); center.textContent = "∞ iterate"; svg.append(center);
+  const center = mk("text", { x: cx, y: cy + 4, class: "center" }); center.textContent = "∞ Iterate"; svg.append(center);
   const nodes = LOOP.map((l, i) => {
     const a = (i / LOOP.length) * Math.PI * 2 - Math.PI / 2, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
     const g = mk("g", { class: "node", tabindex: 0, role: "button", "aria-label": l.label });
     g.append(mk("circle", { cx: x, cy: y, r: 34 }));
-    const t = mk("text", { x, y: y + 4 }); t.textContent = l.label.toLowerCase(); g.append(t);
+    const t = mk("text", { x, y: y + 4 }); t.textContent = l.label; g.append(t);
     const pick = () => select(i); g.addEventListener("click", pick); g.addEventListener("focus", pick);
     svg.append(g); return g;
   });
@@ -250,7 +250,9 @@ function initScroll() {
   const onScroll = () => {
     const mid = innerHeight * 0.5; let p = 0;
     sections.forEach((s, i) => { const r = s.getBoundingClientRect(); if (r.top <= mid) p = i + Math.min(1, Math.max(0, (mid - r.top) / r.height)) - 0.5; });
-    scene.setProgress(Math.max(0, Math.min(sections.length - 1, p)));
+    const sp = Math.max(0, Math.min(sections.length - 1, p));
+    scene.setProgress(sp);
+    document.documentElement.style.setProperty("--sky", (sp / (sections.length - 1)).toFixed(4));
     const cur = sections[Math.round(Math.max(0, p))]?.id;
     links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + cur));
   };

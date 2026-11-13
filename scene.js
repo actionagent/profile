@@ -5,9 +5,15 @@ const CFG = {
   count: window.innerWidth < 700 ? 3500 : 7000,
   pointSize: 2.8,
   accentRatio: 0.12,
-  colorBase: new THREE.Color("#d9d3c7"),
-  colorAccent: new THREE.Color("#ff4d2e"),
-  colorLive: new THREE.Color("#7cf5d6"),
+  colorBase: new THREE.Color("#fdf0dc"),
+  colorAccent: new THREE.Color("#ffb36b"),
+  colorLive: new THREE.Color("#9fe6c9"),
+  shapeRadius: 2.4,    // nominal radius of the hero sphere (world units)
+  desktopBreak: 860,   // px; matches CSS breakpoint
+  desktopCenterX: 0.72, // sphere centre as a fraction of viewport width (right column)
+  desktopMaxR: 0.16,   // max radius as a fraction of viewport width (keeps it clear of the headline)
+  heightFill: 0.33,    // max radius as a fraction of viewport height (never clipped top/bottom)
+  mobileMaxR: 0.42,    // mobile: centred, radius as a fraction of viewport width
   morphEase: 0.06,     // per-frame lerp toward scroll target
   mouseInfluence: 0.25,
   drift: 0.00035,
@@ -89,9 +95,22 @@ export function initScene(canvas) {
   const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
   window.addEventListener("pointermove", e => { mouse.tx = (e.clientX / innerWidth - 0.5) * 2; mouse.ty = (e.clientY / innerHeight - 0.5) * 2; });
 
+  // Fit the cloud to the viewport in world units so it is never clipped and never sits under the headline.
+  const layout = { x: 0, scale: 1 };
   function resize() {
     const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h;
-    camera.position.z = w < 700 ? 11 : 8; camera.updateProjectionMatrix();
+    camera.position.z = 8; camera.updateProjectionMatrix();
+    const worldH = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const worldW = worldH * camera.aspect;
+    if (w > CFG.desktopBreak) {
+      const r = Math.min(worldW * CFG.desktopMaxR, worldH * CFG.heightFill);
+      layout.scale = r / CFG.shapeRadius;
+      layout.x = worldW * (CFG.desktopCenterX - 0.5);
+    } else {
+      const r = Math.min(worldW * CFG.mobileMaxR, worldH * CFG.heightFill);
+      layout.scale = r / CFG.shapeRadius;
+      layout.x = 0;
+    }
   }
   addEventListener("resize", resize); resize();
 
@@ -109,8 +128,8 @@ export function initScene(canvas) {
     mouse.x += (mouse.tx - mouse.x) * 0.05; mouse.y += (mouse.ty - mouse.y) * 0.05;
     points.rotation.y = reduced ? 0 : t * 0.06 + mouse.x * CFG.mouseInfluence;
     points.rotation.x = reduced ? 0 : Math.sin(t * 0.1) * 0.08 + mouse.y * CFG.mouseInfluence * 0.6;
-    // shift the cloud right on desktop so it frames the text instead of sitting under it
-    points.position.x = innerWidth > 860 ? 1.8 : 0;
+    points.position.x = layout.x;
+    points.scale.setScalar(layout.scale);
     pulse *= 0.94; mat.uniforms.uPulse.value = pulse; mat.uniforms.uTime.value = t;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
