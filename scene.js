@@ -14,6 +14,7 @@ const CFG = {
   desktopMaxR: 0.16,   // max radius as a fraction of viewport width (keeps it clear of the headline)
   heightFill: 0.33,    // max radius as a fraction of viewport height (never clipped top/bottom)
   mobileMaxR: 0.42,    // mobile: centred, radius as a fraction of viewport width
+  readingAlpha: 0.5,   // particle opacity behind text sections (hero is 1)
   morphEase: 0.06,     // per-frame lerp toward scroll target
   mouseInfluence: 0.25,
   drift: 0.00035,
@@ -74,7 +75,7 @@ export function initScene(canvas) {
 
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
-    uniforms: { uTime: { value: 0 }, uSize: { value: CFG.pointSize * renderer.getPixelRatio() }, uPulse: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uSize: { value: CFG.pointSize * renderer.getPixelRatio() }, uPulse: { value: 0 }, uAlpha: { value: 1 } },
     vertexShader: `
       attribute float seed; varying vec3 vColor; varying float vAlpha; uniform float uTime, uSize, uPulse;
       void main(){
@@ -85,13 +86,13 @@ export function initScene(canvas) {
         vColor = color; vAlpha = tw * smoothstep(14.0, 4.0, -mv.z);
       }`,
     fragmentShader: `
-      varying vec3 vColor; varying float vAlpha;
-      void main(){ float d = length(gl_PointCoord - 0.5); if(d > 0.5) discard; gl_FragColor = vec4(vColor, vAlpha * smoothstep(0.5, 0.0, d)); }`,
+      varying vec3 vColor; varying float vAlpha; uniform float uAlpha;
+      void main(){ float d = length(gl_PointCoord - 0.5); if(d > 0.5) discard; gl_FragColor = vec4(vColor, vAlpha * uAlpha * smoothstep(0.5, 0.0, d)); }`,
   });
   const points = new THREE.Points(geo, mat);
   scene.add(points);
 
-  let progress = 0, shown = 0, pulse = 0;
+  let progress = 0, shown = 0, drawn = -1, pulse = 0;
   const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
   window.addEventListener("pointermove", e => { mouse.tx = (e.clientX / innerWidth - 0.5) * 2; mouse.ty = (e.clientY / innerHeight - 0.5) * 2; });
 
@@ -122,14 +123,19 @@ export function initScene(canvas) {
     const b = Math.min(SHAPES.length - 1, a + 1);
     const f = shown - a, k = f * f * (3 - 2 * f); // smoothstep
     const A = targets[a], B = targets[b];
-    for (let i = 0; i < n * 3; i++) pos[i] = A[i] + (B[i] - A[i]) * k;
-    geo.attributes.position.needsUpdate = true;
+    // only rewrite the vertex buffer while the morph is actually moving
+    if (Math.abs(shown - drawn) > 1e-4) {
+      for (let i = 0; i < n * 3; i++) pos[i] = A[i] + (B[i] - A[i]) * k;
+      geo.attributes.position.needsUpdate = true; drawn = shown;
+    }
 
     mouse.x += (mouse.tx - mouse.x) * 0.05; mouse.y += (mouse.ty - mouse.y) * 0.05;
     points.rotation.y = reduced ? 0 : t * 0.06 + mouse.x * CFG.mouseInfluence;
     points.rotation.x = reduced ? 0 : Math.sin(t * 0.1) * 0.08 + mouse.y * CFG.mouseInfluence * 0.6;
     points.position.x = layout.x;
     points.scale.setScalar(layout.scale);
+    // full brightness on the hero, dimmed behind reading sections so text stays clear
+    mat.uniforms.uAlpha.value = 1 - (1 - CFG.readingAlpha) * Math.min(1, Math.max(0, shown));
     pulse *= 0.94; mat.uniforms.uPulse.value = pulse; mat.uniforms.uTime.value = t;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);

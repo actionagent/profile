@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://sabarinathanbalakrishnan.netlify.app/sitemap.xml
